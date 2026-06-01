@@ -1,0 +1,1642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>The 52-Card Pantry — Shuffler</title>
+<style>
+  :root {
+    --cream:#FAF1DD; --tomato:#C0392B; --ink:#1A1A1A; --mustard:#E8A33D;
+    --sage:#8FA572; --berry:#6D2E46; --muted:#6B6358; --cardBg:#FFFCF2; --line:#D9D2C2;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: Calibri, "Helvetica Neue", Helvetica, sans-serif; background: var(--cream); color: var(--ink); margin: 0; padding: 24px; line-height: 1.4; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  h1 { font-family: Georgia, "Times New Roman", serif; font-size: 34px; margin: 0; }
+  .subtitle { color: var(--muted); font-size: 14px; }
+  .controls { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin: 20px 0 24px; padding: 16px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+  .control-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .label { font-size: 11px; font-weight: bold; color: var(--muted); letter-spacing: 2px; }
+  .filter { padding: 7px 14px; background: white; border: 1.5px solid var(--line); border-radius: 20px; cursor: pointer; font-size: 13px; font-family: inherit; color: var(--ink); transition: all .15s; }
+  .filter:hover { border-color: var(--ink); }
+  .filter.active { background: var(--ink); color: var(--cream); border-color: var(--ink); }
+  .filter .sH, .filter .sD { color: var(--tomato); }
+  .filter.active .sH, .filter.active .sD { color: var(--cream); }
+  .btn { padding: 12px 24px; border: none; border-radius: 30px; cursor: pointer; font-size: 15px; font-weight: bold; font-family: inherit; transition: transform .1s; }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--mustard); color: var(--ink); }
+  .btn-primary:hover { background: #d8932a; }
+  .btn-secondary { background: white; color: var(--ink); border: 1.5px solid var(--line); }
+  .btn-secondary:hover { border-color: var(--ink); }
+  .card-stage { display: flex; justify-content: center; padding: 8px 0 24px; min-height: 560px; }
+  .empty { color: var(--muted); font-style: italic; padding: 200px 0; text-align: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 24px; }
+  .card {
+    width: 360px; max-width: 100%;
+    background: var(--cardBg);
+    border: 2px solid var(--ink);
+    border-radius: 16px;
+    padding: 18px 22px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.18);
+    position: relative;
+    display: flex; flex-direction: column;
+    animation: pop .25s ease-out;
+  }
+  @keyframes pop { from { transform: scale(.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .corner { position: absolute; line-height: 1; font-family: Georgia, serif; text-align: center; }
+  .corner-tl { top: 10px; left: 14px; }
+  .corner-br { bottom: 10px; right: 14px; }
+  .corner .r { font-size: 26px; font-weight: bold; }
+  .corner .s { font-size: 18px; margin-top: 2px; }
+  .red { color: var(--tomato); }
+  .black { color: var(--ink); }
+  .card-title { text-align: center; font-family: Georgia, serif; font-size: 20px; font-weight: bold; padding: 6px 56px 10px; }
+  .divider { height: 1.5px; margin: 0 4px 10px; }
+  .section-label { font-size: 10px; font-weight: bold; color: var(--muted); letter-spacing: 3px; margin: 10px 0 4px; }
+  .ingredients ul, .steps ol { margin: 0; padding-left: 22px; font-size: 13.5px; }
+  .ingredients li { margin-bottom: 2px; }
+  .steps li { margin-bottom: 4px; }
+  .card-footer { text-align: center; font-style: italic; color: var(--muted); font-size: 12px; padding-top: 10px; margin-top: auto; border-top: 1px dashed var(--line); padding-bottom: 18px; }
+  .meta-line { text-align: center; color: var(--muted); font-size: 13px; margin-top: 8px; }
+  .data-note { background: white; border-left: 4px solid var(--mustard); padding: 12px 16px; margin: 24px 0 0; font-size: 13px; color: var(--muted); border-radius: 4px; }
+  .data-note code { background: var(--cream); padding: 1px 6px; border-radius: 3px; color: var(--ink); }
+  @media (max-width: 600px) {
+    .card { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>The 52-Card Pantry</h1>
+    <div class="subtitle">Shuffler prototype  ·  CS 330</div>
+  </header>
+
+  <div class="controls">
+    <div class="control-group">
+      <span class="label">MEAL</span>
+      <span class="filter active" data-meal="All" onclick="setFilter(this)">All</span>
+      <span class="filter" data-meal="Breakfast" onclick="setFilter(this)"><span class="sH">♥</span> Breakfast</span>
+      <span class="filter" data-meal="Lunch" onclick="setFilter(this)"><span class="sD">♦</span> Lunch</span>
+      <span class="filter" data-meal="Dinner" onclick="setFilter(this)">♣ Dinner</span>
+      <span class="filter" data-meal="Dessert" onclick="setFilter(this)">♠ Dessert</span>
+    </div>
+    <div class="control-group" style="margin-left:auto">
+      <button class="btn btn-primary" onclick="drawOne()">Shuffle &amp; Draw</button>
+      <button class="btn btn-secondary" onclick="planMyDay()">Plan My Day</button>
+      <button class="btn btn-secondary" onclick="reset()">Reset</button>
+    </div>
+  </div>
+
+  <div class="card-stage" id="stage">
+    <div class="empty">Tap <strong>Shuffle &amp; Draw</strong> to pull a card from the deck.</div>
+  </div>
+  <div class="meta-line" id="meta"></div>
+
+  <div class="data-note">
+    All 52 recipes are embedded in this file as <code>RECIPES</code> for portability. The same data also ships as <code>recipes.json</code> — drop it into the real app and render however you like.
+  </div>
+</div>
+
+<script>
+const RECIPES = [
+  {
+    "id": "2H",
+    "rank": "2",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Avocado Toast",
+    "ingredients": [
+      "1 slice of bread",
+      "½ ripe avocado"
+    ],
+    "ingredientCount": 2,
+    "steps": [
+      "Toast bread until golden.",
+      "Mash avocado and spread on toast.",
+      "Season with salt and pepper to taste."
+    ],
+    "cost": "$1.10",
+    "time": "5 min",
+    "servings": 1
+  },
+  {
+    "id": "3H",
+    "rank": "3",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Yogurt Berry Bowl",
+    "ingredients": [
+      "1 cup Greek yogurt",
+      "½ cup mixed berries",
+      "1 tbsp honey"
+    ],
+    "ingredientCount": 3,
+    "steps": [
+      "Spoon yogurt into a bowl.",
+      "Top with berries.",
+      "Drizzle honey over the top."
+    ],
+    "cost": "$1.40",
+    "time": "3 min",
+    "servings": 1
+  },
+  {
+    "id": "4H",
+    "rank": "4",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Microwave Egg Sandwich",
+    "ingredients": [
+      "1 egg",
+      "1 English muffin",
+      "1 slice cheddar",
+      "1 tsp butter"
+    ],
+    "ingredientCount": 4,
+    "steps": [
+      "Crack egg into a greased mug; whisk.",
+      "Microwave 60–90 sec until set.",
+      "Toast muffin and butter it.",
+      "Assemble with egg and cheese."
+    ],
+    "cost": "$1.30",
+    "time": "5 min",
+    "servings": 1
+  },
+  {
+    "id": "5H",
+    "rank": "5",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Banana Oat Pancakes",
+    "ingredients": [
+      "½ cup rolled oats",
+      "1 ripe banana",
+      "1 egg",
+      "¼ cup milk",
+      "Pinch of cinnamon"
+    ],
+    "ingredientCount": 5,
+    "steps": [
+      "Blend everything smooth.",
+      "Pour onto a hot non-stick pan.",
+      "Flip when bubbles form.",
+      "Stack and eat."
+    ],
+    "cost": "$0.85",
+    "time": "10 min",
+    "servings": 1
+  },
+  {
+    "id": "6H",
+    "rank": "6",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Veggie Scramble Wrap",
+    "ingredients": [
+      "2 eggs",
+      "¼ bell pepper",
+      "Handful spinach",
+      "¼ cup shredded cheese",
+      "1 flour tortilla",
+      "1 tsp olive oil"
+    ],
+    "ingredientCount": 6,
+    "steps": [
+      "Sauté pepper and spinach in oil.",
+      "Add beaten eggs; scramble.",
+      "Stir in cheese.",
+      "Roll up in the tortilla."
+    ],
+    "cost": "$1.60",
+    "time": "12 min",
+    "servings": 1
+  },
+  {
+    "id": "7H",
+    "rank": "7",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Overnight Oats Deluxe",
+    "ingredients": [
+      "½ cup rolled oats",
+      "½ cup milk",
+      "1 tbsp chia seeds",
+      "1 tbsp peanut butter",
+      "½ banana",
+      "1 tsp honey",
+      "Pinch of cinnamon"
+    ],
+    "ingredientCount": 7,
+    "steps": [
+      "Stir oats, milk, chia, PB, and honey in a jar.",
+      "Refrigerate 6+ hours (overnight).",
+      "Top with sliced banana and cinnamon."
+    ],
+    "cost": "$1.20",
+    "time": "5 min + chill",
+    "servings": 1
+  },
+  {
+    "id": "8H",
+    "rank": "8",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Breakfast Quesadilla",
+    "ingredients": [
+      "2 eggs",
+      "2 flour tortillas",
+      "¼ cup shredded cheese",
+      "¼ cup black beans",
+      "2 tbsp salsa",
+      "2 scallions",
+      "¼ bell pepper",
+      "1 tsp butter"
+    ],
+    "ingredientCount": 8,
+    "steps": [
+      "Scramble eggs with diced pepper and scallions.",
+      "Spread eggs, beans, cheese, and salsa on one tortilla.",
+      "Top with the second tortilla.",
+      "Toast in butter on both sides until golden."
+    ],
+    "cost": "$2.00",
+    "time": "15 min",
+    "servings": 1
+  },
+  {
+    "id": "9H",
+    "rank": "9",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Shakshuka",
+    "ingredients": [
+      "4 eggs",
+      "1 can diced tomatoes",
+      "½ onion",
+      "2 garlic cloves",
+      "1 bell pepper",
+      "1 tsp paprika",
+      "½ tsp cumin",
+      "2 tbsp olive oil",
+      "¼ cup crumbled feta"
+    ],
+    "ingredientCount": 9,
+    "steps": [
+      "Sauté onion, garlic, and pepper in oil.",
+      "Add tomatoes and spices; simmer 5 min.",
+      "Crack eggs into the sauce; cover.",
+      "Cook 6 min; top with feta."
+    ],
+    "cost": "$2.30",
+    "time": "25 min",
+    "servings": 2
+  },
+  {
+    "id": "10H",
+    "rank": "10",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Loaded Bagel",
+    "ingredients": [
+      "1 bagel",
+      "2 tbsp cream cheese",
+      "2 oz smoked salmon",
+      "1 tsp capers",
+      "2 thin rings red onion",
+      "2 tomato slices",
+      "4 cucumber slices",
+      "1 tsp fresh dill",
+      "½ lemon",
+      "Black pepper"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Toast bagel; spread cream cheese on both halves.",
+      "Layer salmon, onion, tomato, and cucumber.",
+      "Top with capers, dill, a squeeze of lemon, and pepper."
+    ],
+    "cost": "$3.20",
+    "time": "8 min",
+    "servings": 1
+  },
+  {
+    "id": "JH",
+    "rank": "J",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Breakfast",
+    "name": "Breakfast Burrito",
+    "ingredients": [
+      "2 eggs",
+      "1 small potato",
+      "¼ cup black beans",
+      "¼ cup cheddar",
+      "2 tbsp salsa",
+      "¼ bell pepper",
+      "¼ onion",
+      "1 large tortilla",
+      "1 tsp oil",
+      "Hot sauce"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Crisp diced potato in oil.",
+      "Add pepper, onion, and beans.",
+      "Scramble in the eggs.",
+      "Fill tortilla; add cheese, salsa, and hot sauce; roll."
+    ],
+    "cost": "$2.10",
+    "time": "20 min",
+    "servings": 1
+  },
+  {
+    "id": "JD",
+    "rank": "J",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Breakfast",
+    "name": "French Toast Bake",
+    "ingredients": [
+      "6 slices bread",
+      "4 eggs",
+      "1 cup milk",
+      "2 tbsp butter",
+      "2 tbsp sugar",
+      "1 tsp cinnamon",
+      "1 tsp vanilla",
+      "2 tbsp maple syrup",
+      "½ cup berries",
+      "1 tbsp powdered sugar"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Whisk eggs, milk, sugar, vanilla, and cinnamon.",
+      "Soak cubed bread; transfer to a greased dish.",
+      "Dot with butter; bake 350°F for 30 min.",
+      "Top with berries, maple syrup, and powdered sugar."
+    ],
+    "cost": "$1.80",
+    "time": "40 min",
+    "servings": 4
+  },
+  {
+    "id": "JC",
+    "rank": "J",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Breakfast",
+    "name": "Veggie Frittata",
+    "ingredients": [
+      "6 eggs",
+      "¼ cup milk",
+      "Handful spinach",
+      "½ cup sliced mushrooms",
+      "½ bell pepper",
+      "¼ onion",
+      "½ cup shredded cheese",
+      "1 tbsp butter",
+      "½ tsp salt",
+      "¼ tsp pepper"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Sauté onion, pepper, and mushrooms in butter in an oven-safe pan.",
+      "Whisk eggs with milk, salt, and pepper; stir in cheese and spinach.",
+      "Pour over veggies; cook 2 min on the stove.",
+      "Bake 375°F for 12–15 min until set."
+    ],
+    "cost": "$1.60",
+    "time": "25 min",
+    "servings": 4
+  },
+  {
+    "id": "JS",
+    "rank": "J",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Breakfast",
+    "name": "Smoothie Bowl Deluxe",
+    "ingredients": [
+      "1 cup frozen berries",
+      "1 banana",
+      "½ cup yogurt",
+      "¼ cup granola",
+      "1 tbsp peanut butter",
+      "1 tsp honey",
+      "1 tsp chia seeds",
+      "1 tbsp coconut flakes",
+      "1 tbsp sliced almonds",
+      "¼ cup milk"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Blend berries, banana, yogurt, and milk until thick.",
+      "Pour into a bowl.",
+      "Top with granola, PB, honey, chia, coconut, and almonds."
+    ],
+    "cost": "$2.50",
+    "time": "7 min",
+    "servings": 1
+  },
+  {
+    "id": "2D",
+    "rank": "2",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "Microwave Cheese Quesadilla",
+    "ingredients": [
+      "2 flour tortillas",
+      "½ cup shredded cheese"
+    ],
+    "ingredientCount": 2,
+    "steps": [
+      "Sprinkle cheese on one tortilla.",
+      "Top with the second tortilla.",
+      "Microwave 30–45 sec until melted.",
+      "Slice into wedges."
+    ],
+    "cost": "$1.00",
+    "time": "3 min",
+    "servings": 1
+  },
+  {
+    "id": "3D",
+    "rank": "3",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "Hummus Veggie Wrap",
+    "ingredients": [
+      "3 tbsp hummus",
+      "1 large tortilla",
+      "½ cucumber"
+    ],
+    "ingredientCount": 3,
+    "steps": [
+      "Spread hummus on the tortilla.",
+      "Layer thinly-sliced cucumber.",
+      "Roll tightly and slice in half."
+    ],
+    "cost": "$1.40",
+    "time": "4 min",
+    "servings": 1
+  },
+  {
+    "id": "4D",
+    "rank": "4",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "Caprese Sandwich",
+    "ingredients": [
+      "1 ciabatta roll",
+      "2 slices fresh mozzarella",
+      "1 tomato",
+      "1 tbsp basil pesto"
+    ],
+    "ingredientCount": 4,
+    "steps": [
+      "Slice roll, mozzarella, and tomato.",
+      "Spread pesto on the bread.",
+      "Layer mozzarella and tomato.",
+      "Close and press lightly."
+    ],
+    "cost": "$2.30",
+    "time": "5 min",
+    "servings": 1
+  },
+  {
+    "id": "5D",
+    "rank": "5",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "Tuna Melt",
+    "ingredients": [
+      "1 can tuna",
+      "1 tbsp mayo",
+      "2 slices bread",
+      "¼ cup cheddar",
+      "1 rib celery"
+    ],
+    "ingredientCount": 5,
+    "steps": [
+      "Mix tuna with mayo and diced celery.",
+      "Pile onto bread; top with cheese.",
+      "Toast in a pan until cheese melts.",
+      "Slice and serve."
+    ],
+    "cost": "$1.90",
+    "time": "8 min",
+    "servings": 1
+  },
+  {
+    "id": "6D",
+    "rank": "6",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "Cobb-Style Salad",
+    "ingredients": [
+      "3 cups romaine",
+      "½ cup cooked chicken",
+      "2 tbsp bacon bits",
+      "2 tbsp blue cheese",
+      "½ avocado",
+      "2 tbsp ranch dressing"
+    ],
+    "ingredientCount": 6,
+    "steps": [
+      "Chop romaine and pile in a bowl.",
+      "Top with chicken, bacon, blue cheese, and avocado in rows.",
+      "Drizzle with ranch."
+    ],
+    "cost": "$3.20",
+    "time": "10 min",
+    "servings": 1
+  },
+  {
+    "id": "7D",
+    "rank": "7",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "Chickpea Salad",
+    "ingredients": [
+      "1 can chickpeas",
+      "½ cucumber",
+      "½ cup cherry tomatoes",
+      "¼ cup feta",
+      "¼ red onion",
+      "2 tbsp olive oil",
+      "½ lemon"
+    ],
+    "ingredientCount": 7,
+    "steps": [
+      "Drain and rinse chickpeas.",
+      "Chop cucumber, tomato, and onion.",
+      "Toss with feta, olive oil, and lemon.",
+      "Season and serve."
+    ],
+    "cost": "$1.75",
+    "time": "10 min",
+    "servings": 2
+  },
+  {
+    "id": "8D",
+    "rank": "8",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "BLT Avocado Wrap",
+    "ingredients": [
+      "3 slices bacon",
+      "1 cup chopped lettuce",
+      "1 tomato",
+      "½ avocado",
+      "1 tbsp mayo",
+      "1 large tortilla",
+      "Salt",
+      "Black pepper"
+    ],
+    "ingredientCount": 8,
+    "steps": [
+      "Cook bacon until crisp.",
+      "Spread mayo on the tortilla.",
+      "Layer bacon, lettuce, tomato, and avocado.",
+      "Season; roll tightly and slice."
+    ],
+    "cost": "$2.50",
+    "time": "12 min",
+    "servings": 1
+  },
+  {
+    "id": "9D",
+    "rank": "9",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "Italian Pasta Salad",
+    "ingredients": [
+      "8 oz rotini",
+      "1 cup cherry tomatoes",
+      "1 cup mozzarella balls",
+      "½ cup black olives",
+      "¼ lb salami",
+      "½ cup Italian dressing",
+      "¼ cup fresh basil",
+      "¼ cup parmesan",
+      "¼ red onion"
+    ],
+    "ingredientCount": 9,
+    "steps": [
+      "Boil pasta; rinse with cool water.",
+      "Halve tomatoes and olives; slice salami and onion.",
+      "Toss everything with dressing.",
+      "Top with basil and parmesan."
+    ],
+    "cost": "$2.80",
+    "time": "20 min",
+    "servings": 4
+  },
+  {
+    "id": "10D",
+    "rank": "10",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "Mediterranean Bowl",
+    "ingredients": [
+      "1 cup quinoa",
+      "1 can chickpeas",
+      "½ cucumber",
+      "1 cup cherry tomatoes",
+      "¼ cup kalamata olives",
+      "¼ cup feta",
+      "¼ red onion",
+      "2 tbsp olive oil",
+      "½ lemon",
+      "1 tsp oregano"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Cook quinoa per package.",
+      "Chop the veggies.",
+      "Layer quinoa, chickpeas, and veggies in a bowl.",
+      "Dress with oil, lemon, and oregano; top with feta."
+    ],
+    "cost": "$2.40",
+    "time": "25 min",
+    "servings": 2
+  },
+  {
+    "id": "QD",
+    "rank": "Q",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Lunch",
+    "name": "Burrito Bowl",
+    "ingredients": [
+      "1 cup rice",
+      "½ cup black beans",
+      "1 chicken breast",
+      "¼ cup corn",
+      "2 tbsp salsa",
+      "½ avocado",
+      "¼ cup shredded cheese",
+      "½ lime",
+      "Fresh cilantro",
+      "2 tbsp sour cream"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Cook rice; season and sear chicken.",
+      "Warm beans and corn.",
+      "Layer rice, beans, and sliced chicken.",
+      "Top with the rest and squeeze the lime."
+    ],
+    "cost": "$3.00",
+    "time": "25 min",
+    "servings": 2
+  },
+  {
+    "id": "QH",
+    "rank": "Q",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Lunch",
+    "name": "Banh Mi-Style Sandwich",
+    "ingredients": [
+      "1 baguette",
+      "6 oz pork (or tofu)",
+      "½ cup pickled carrots",
+      "½ cup pickled daikon",
+      "½ cucumber",
+      "Fresh cilantro",
+      "2 tbsp mayo",
+      "2 tsp sriracha",
+      "2 tbsp soy sauce",
+      "1 jalapeño"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Sear pork (or tofu) with soy sauce.",
+      "Slice cucumber and jalapeño thinly.",
+      "Spread mayo and sriracha on the baguette.",
+      "Layer protein, pickled veg, cucumber, jalapeño, and cilantro."
+    ],
+    "cost": "$3.50",
+    "time": "25 min",
+    "servings": 2
+  },
+  {
+    "id": "QC",
+    "rank": "Q",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Lunch",
+    "name": "Chicken Caesar Wrap",
+    "ingredients": [
+      "1 cooked chicken breast",
+      "2 cups romaine",
+      "¼ cup parmesan",
+      "3 tbsp Caesar dressing",
+      "½ cup croutons",
+      "1 large tortilla",
+      "½ lemon",
+      "½ tsp garlic powder",
+      "¼ tsp black pepper",
+      "½ tsp anchovy paste"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Whisk dressing with lemon, garlic powder, pepper, and anchovy paste.",
+      "Toss chopped romaine, sliced chicken, parmesan, and croutons.",
+      "Pile into the tortilla and roll tightly."
+    ],
+    "cost": "$2.80",
+    "time": "12 min",
+    "servings": 1
+  },
+  {
+    "id": "QS",
+    "rank": "Q",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Lunch",
+    "name": "Loaded Baked Potato",
+    "ingredients": [
+      "1 large potato",
+      "1 tbsp butter",
+      "2 tbsp sour cream",
+      "¼ cup shredded cheddar",
+      "2 tbsp bacon bits",
+      "1 tbsp chives",
+      "½ cup steamed broccoli",
+      "Salt",
+      "Black pepper",
+      "1 tbsp ranch"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Microwave potato 7 min; flip and microwave 4 more.",
+      "Steam the broccoli.",
+      "Split potato; add butter, salt, and pepper.",
+      "Top with sour cream, cheese, bacon, broccoli, chives, and ranch."
+    ],
+    "cost": "$2.20",
+    "time": "20 min",
+    "servings": 1
+  },
+  {
+    "id": "2C",
+    "rank": "2",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "Pesto Pasta",
+    "ingredients": [
+      "8 oz pasta",
+      "¼ cup pesto"
+    ],
+    "ingredientCount": 2,
+    "steps": [
+      "Boil pasta per package.",
+      "Drain; reserve a splash of pasta water.",
+      "Toss with pesto and a little pasta water."
+    ],
+    "cost": "$1.50",
+    "time": "12 min",
+    "servings": 2
+  },
+  {
+    "id": "3C",
+    "rank": "3",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "Bean Quesadilla",
+    "ingredients": [
+      "2 flour tortillas",
+      "½ cup black beans",
+      "¾ cup shredded cheese"
+    ],
+    "ingredientCount": 3,
+    "steps": [
+      "Spread beans and cheese on a tortilla.",
+      "Top with the second tortilla.",
+      "Toast both sides until golden.",
+      "Slice into wedges."
+    ],
+    "cost": "$1.20",
+    "time": "8 min",
+    "servings": 1
+  },
+  {
+    "id": "4C",
+    "rank": "4",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "Grilled Cheese & Tomato Soup",
+    "ingredients": [
+      "2 slices bread",
+      "2 slices cheese",
+      "1 tbsp butter",
+      "1 cup tomato soup"
+    ],
+    "ingredientCount": 4,
+    "steps": [
+      "Heat the soup on the stove or in the microwave.",
+      "Butter the bread; assemble with cheese.",
+      "Toast in a pan on both sides until golden.",
+      "Slice and serve with the soup."
+    ],
+    "cost": "$2.00",
+    "time": "12 min",
+    "servings": 1
+  },
+  {
+    "id": "5C",
+    "rank": "5",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "Garlic Butter Noodles",
+    "ingredients": [
+      "8 oz spaghetti",
+      "2 tbsp butter",
+      "3 garlic cloves",
+      "¼ cup parmesan",
+      "Fresh parsley"
+    ],
+    "ingredientCount": 5,
+    "steps": [
+      "Boil pasta; save ¼ cup pasta water.",
+      "Melt butter; cook minced garlic 1 min.",
+      "Toss pasta with butter and pasta water.",
+      "Add parmesan and parsley."
+    ],
+    "cost": "$1.10",
+    "time": "15 min",
+    "servings": 2
+  },
+  {
+    "id": "6C",
+    "rank": "6",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "Sheet-Pan Salmon",
+    "ingredients": [
+      "2 salmon fillets",
+      "1 bunch asparagus",
+      "2 tbsp olive oil",
+      "1 lemon",
+      "2 garlic cloves",
+      "Salt"
+    ],
+    "ingredientCount": 6,
+    "steps": [
+      "Heat oven to 425°F.",
+      "Toss asparagus with oil, minced garlic, and salt.",
+      "Add salmon to the pan; top with lemon slices.",
+      "Roast 12–15 min until salmon flakes."
+    ],
+    "cost": "$4.20",
+    "time": "25 min",
+    "servings": 2
+  },
+  {
+    "id": "7C",
+    "rank": "7",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "Chicken Stir-Fry",
+    "ingredients": [
+      "2 chicken breasts",
+      "2 cups broccoli",
+      "1 bell pepper",
+      "3 garlic cloves",
+      "1 tbsp ginger",
+      "3 tbsp soy sauce",
+      "1 tbsp sesame oil"
+    ],
+    "ingredientCount": 7,
+    "steps": [
+      "Cube chicken; sauté in sesame oil 5 min.",
+      "Add garlic, ginger, broccoli, and pepper.",
+      "Stir-fry 4 min.",
+      "Splash with soy sauce; serve over rice (optional)."
+    ],
+    "cost": "$2.60",
+    "time": "15 min",
+    "servings": 2
+  },
+  {
+    "id": "8C",
+    "rank": "8",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "Sheet-Pan Sausage",
+    "ingredients": [
+      "2 sausages",
+      "2 potatoes",
+      "1 cup broccoli",
+      "1 bell pepper",
+      "½ red onion",
+      "2 tbsp olive oil",
+      "1 tsp garlic powder",
+      "1 tsp paprika"
+    ],
+    "ingredientCount": 8,
+    "steps": [
+      "Heat oven to 425°F.",
+      "Chop everything; toss with oil and spices.",
+      "Spread on a sheet pan.",
+      "Roast 25 min, stirring once."
+    ],
+    "cost": "$2.40",
+    "time": "35 min",
+    "servings": 2
+  },
+  {
+    "id": "9C",
+    "rank": "9",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "Turkey Chili",
+    "ingredients": [
+      "1 lb ground turkey",
+      "1 can kidney beans",
+      "1 can black beans",
+      "1 can diced tomatoes",
+      "1 onion",
+      "3 garlic cloves",
+      "2 tbsp chili powder",
+      "1 tsp cumin",
+      "1 tsp salt"
+    ],
+    "ingredientCount": 9,
+    "steps": [
+      "Brown turkey with onion and garlic in a pot.",
+      "Add beans, tomatoes, and spices.",
+      "Simmer 20 min.",
+      "Adjust seasoning and serve."
+    ],
+    "cost": "$2.10",
+    "time": "30 min",
+    "servings": 4
+  },
+  {
+    "id": "10C",
+    "rank": "10",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "Sheet-Pan Fajitas",
+    "ingredients": [
+      "2 chicken breasts",
+      "2 bell peppers",
+      "1 onion",
+      "8 small tortillas",
+      "2 limes",
+      "1 tsp cumin",
+      "1 tsp paprika",
+      "1 tsp garlic powder",
+      "½ cup salsa",
+      "¼ cup sour cream"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Slice chicken, peppers, and onion.",
+      "Toss with cumin, paprika, garlic powder, lime juice (use one lime), and a splash of oil.",
+      "Spread on a sheet pan; roast 425°F for 20 min.",
+      "Warm tortillas; fill with chicken; top with salsa, sour cream, and the remaining lime."
+    ],
+    "cost": "$2.90",
+    "time": "30 min",
+    "servings": 4
+  },
+  {
+    "id": "KC",
+    "rank": "K",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dinner",
+    "name": "One-Pot Chicken Pasta",
+    "ingredients": [
+      "2 chicken thighs",
+      "8 oz penne",
+      "1 can diced tomatoes",
+      "½ onion",
+      "3 garlic cloves",
+      "2 tbsp olive oil",
+      "1 tsp oregano",
+      "Salt & pepper",
+      "Handful spinach",
+      "¼ cup parmesan"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Sear chicken in oil; remove and set aside.",
+      "Sauté onion and garlic.",
+      "Add tomatoes, pasta, oregano, salt, pepper, and 2 cups water.",
+      "Simmer 12 min; stir in spinach and parmesan; slice in chicken."
+    ],
+    "cost": "$3.10",
+    "time": "30 min",
+    "servings": 2
+  },
+  {
+    "id": "KH",
+    "rank": "K",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Dinner",
+    "name": "Beef Stir-Fry Rice Bowl",
+    "ingredients": [
+      "1 lb ground beef",
+      "1 cup rice",
+      "1 cup broccoli",
+      "1 carrot",
+      "½ onion",
+      "2 garlic cloves",
+      "1 tbsp ginger",
+      "3 tbsp soy sauce",
+      "1 tsp sriracha",
+      "1 tsp sesame seeds"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Cook the rice.",
+      "Brown beef in a hot pan; remove.",
+      "Stir-fry broccoli, carrot, onion, garlic, and ginger 4 min.",
+      "Return beef; add soy and sriracha; serve over rice; garnish with sesame seeds."
+    ],
+    "cost": "$3.40",
+    "time": "25 min",
+    "servings": 3
+  },
+  {
+    "id": "KD",
+    "rank": "K",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Dinner",
+    "name": "Coconut Chicken Curry",
+    "ingredients": [
+      "1.5 lb chicken",
+      "1 can coconut milk",
+      "3 tbsp curry paste",
+      "1 onion",
+      "3 garlic cloves",
+      "1 tbsp ginger",
+      "1 bell pepper",
+      "1 cup rice",
+      "1 lime",
+      "Fresh cilantro"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Sauté onion, garlic, and ginger.",
+      "Stir in curry paste and cubed chicken; cook 4 min.",
+      "Add coconut milk and sliced pepper; simmer 15 min.",
+      "Serve over rice; top with lime and cilantro."
+    ],
+    "cost": "$3.80",
+    "time": "30 min",
+    "servings": 3
+  },
+  {
+    "id": "KS",
+    "rank": "K",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dinner",
+    "name": "Veggie Lasagna",
+    "ingredients": [
+      "12 lasagna noodles",
+      "2 cups ricotta",
+      "1 jar marinara",
+      "2 cups mozzarella",
+      "2 cups spinach",
+      "1 cup mushrooms",
+      "3 garlic cloves",
+      "2 tbsp olive oil",
+      "Fresh basil",
+      "¼ cup parmesan"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Cook noodles per package.",
+      "Sauté mushrooms, garlic, and spinach in oil; mix into ricotta.",
+      "Layer noodles, ricotta-veg, marinara, and mozzarella; repeat twice.",
+      "Top with parmesan and basil; bake 375°F for 30 min."
+    ],
+    "cost": "$2.80",
+    "time": "60 min",
+    "servings": 6
+  },
+  {
+    "id": "2S",
+    "rank": "2",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "Banana Nice Cream",
+    "ingredients": [
+      "2 frozen bananas",
+      "1 tbsp peanut butter"
+    ],
+    "ingredientCount": 2,
+    "steps": [
+      "Slice frozen bananas.",
+      "Blend with peanut butter.",
+      "Scrape down; blend until creamy.",
+      "Scoop and serve."
+    ],
+    "cost": "$0.60",
+    "time": "5 min",
+    "servings": 1
+  },
+  {
+    "id": "3S",
+    "rank": "3",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "Strawberries & Cream",
+    "ingredients": [
+      "1 cup strawberries",
+      "¼ cup whipped cream",
+      "1 tsp sugar"
+    ],
+    "ingredientCount": 3,
+    "steps": [
+      "Slice strawberries; sprinkle with sugar.",
+      "Let macerate 10 min.",
+      "Top with whipped cream."
+    ],
+    "cost": "$1.40",
+    "time": "12 min",
+    "servings": 2
+  },
+  {
+    "id": "4S",
+    "rank": "4",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "PB Mug Cookie",
+    "ingredients": [
+      "3 tbsp peanut butter",
+      "2 tbsp sugar",
+      "1 egg yolk",
+      "2 tbsp chocolate chips"
+    ],
+    "ingredientCount": 4,
+    "steps": [
+      "Mix PB, sugar, and yolk in a mug.",
+      "Fold in chocolate chips.",
+      "Microwave 50–60 seconds.",
+      "Let cool 1 min; dig in."
+    ],
+    "cost": "$0.70",
+    "time": "5 min",
+    "servings": 1
+  },
+  {
+    "id": "5S",
+    "rank": "5",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "Mug Brownie",
+    "ingredients": [
+      "3 tbsp flour",
+      "2 tbsp cocoa powder",
+      "3 tbsp sugar",
+      "2 tbsp vegetable oil",
+      "3 tbsp milk"
+    ],
+    "ingredientCount": 5,
+    "steps": [
+      "Whisk the dry ingredients in a mug.",
+      "Add oil and milk; stir until smooth.",
+      "Microwave 60–80 seconds.",
+      "Eat warm."
+    ],
+    "cost": "$0.50",
+    "time": "4 min",
+    "servings": 1
+  },
+  {
+    "id": "6S",
+    "rank": "6",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "No-Bake Energy Bites",
+    "ingredients": [
+      "1 cup oats",
+      "½ cup peanut butter",
+      "3 tbsp honey",
+      "¼ cup chocolate chips",
+      "1 tbsp chia seeds",
+      "½ tsp vanilla"
+    ],
+    "ingredientCount": 6,
+    "steps": [
+      "Stir everything in a bowl.",
+      "Chill 15 min to firm up.",
+      "Roll into bite-size balls.",
+      "Keep in the fridge."
+    ],
+    "cost": "$0.80",
+    "time": "20 min",
+    "servings": 12
+  },
+  {
+    "id": "7S",
+    "rank": "7",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "S'mores Dip",
+    "ingredients": [
+      "1 cup chocolate chips",
+      "2 cups mini marshmallows",
+      "1 tbsp butter",
+      "1 sleeve graham crackers",
+      "½ tsp vanilla",
+      "¼ tsp cinnamon",
+      "Pinch sea salt"
+    ],
+    "ingredientCount": 7,
+    "steps": [
+      "Heat oven to 400°F.",
+      "Melt butter in a small skillet; stir in vanilla and cinnamon.",
+      "Layer chocolate chips, then marshmallows on top.",
+      "Bake 8 min until golden; sprinkle with salt; dip with crackers."
+    ],
+    "cost": "$1.30",
+    "time": "15 min",
+    "servings": 4
+  },
+  {
+    "id": "8S",
+    "rank": "8",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "Chocolate Mug Cake",
+    "ingredients": [
+      "4 tbsp flour",
+      "3 tbsp sugar",
+      "2 tbsp cocoa",
+      "4 tbsp milk",
+      "2 tbsp oil",
+      "½ tsp vanilla",
+      "1 tbsp chocolate chips",
+      "¼ tsp baking powder"
+    ],
+    "ingredientCount": 8,
+    "steps": [
+      "Whisk dry in a mug.",
+      "Add wet ingredients; stir until smooth.",
+      "Fold in chocolate chips.",
+      "Microwave 90 seconds; let cool 1 min."
+    ],
+    "cost": "$0.70",
+    "time": "5 min",
+    "servings": 1
+  },
+  {
+    "id": "9S",
+    "rank": "9",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "Berry Crisp",
+    "ingredients": [
+      "3 cups mixed berries",
+      "1 cup oats",
+      "½ cup flour",
+      "½ cup brown sugar",
+      "4 tbsp butter",
+      "1 tsp cinnamon",
+      "1 tbsp lemon juice",
+      "½ tsp vanilla",
+      "Pinch of salt"
+    ],
+    "ingredientCount": 9,
+    "steps": [
+      "Toss berries with lemon and vanilla.",
+      "Rub oats, flour, brown sugar, butter, cinnamon, and salt into a crumble.",
+      "Top the berries in a baking dish.",
+      "Bake 375°F for 30 min until bubbling."
+    ],
+    "cost": "$1.60",
+    "time": "40 min",
+    "servings": 4
+  },
+  {
+    "id": "10S",
+    "rank": "10",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "Apple Pie Skillet",
+    "ingredients": [
+      "4 apples",
+      "4 tbsp butter",
+      "½ cup flour",
+      "¼ cup white sugar",
+      "⅓ cup brown sugar",
+      "1 tsp cinnamon",
+      "¼ tsp nutmeg",
+      "½ tsp vanilla",
+      "½ cup oats",
+      "Pinch of salt"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Sauté sliced apples in 2 tbsp butter and white sugar 5 min.",
+      "Stir in cinnamon, nutmeg, and vanilla.",
+      "Rub flour, oats, brown sugar, salt, and remaining butter into a crumble.",
+      "Top apples; bake 375°F for 25 min."
+    ],
+    "cost": "$1.40",
+    "time": "45 min",
+    "servings": 4
+  },
+  {
+    "id": "AS",
+    "rank": "A",
+    "suit": "S",
+    "suitName": "Spades",
+    "suitSymbol": "♠",
+    "meal": "Dessert",
+    "name": "Apple Crumble",
+    "ingredients": [
+      "3 apples",
+      "½ cup flour",
+      "½ cup oats",
+      "4 tbsp butter",
+      "⅓ cup brown sugar",
+      "1 tsp cinnamon",
+      "1 tbsp lemon juice",
+      "2 tbsp white sugar",
+      "Pinch of salt",
+      "½ tsp vanilla"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Toss apples with lemon, white sugar, vanilla, and cinnamon.",
+      "Rub flour, oats, brown sugar, salt, and butter into a crumble.",
+      "Top the apples with the crumble.",
+      "Bake 375°F for 30 min."
+    ],
+    "cost": "$1.30",
+    "time": "40 min",
+    "servings": 4
+  },
+  {
+    "id": "AH",
+    "rank": "A",
+    "suit": "H",
+    "suitName": "Hearts",
+    "suitSymbol": "♥",
+    "meal": "Dessert",
+    "name": "Chocolate Lava Cake",
+    "ingredients": [
+      "4 oz dark chocolate",
+      "4 tbsp butter",
+      "¼ cup white sugar",
+      "2 eggs",
+      "2 tbsp flour",
+      "½ tsp vanilla",
+      "Pinch of salt",
+      "1 tbsp cocoa powder",
+      "1 tbsp powdered sugar",
+      "¼ cup raspberries"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Melt chocolate and butter; whisk in sugar.",
+      "Add eggs and vanilla; fold in flour, cocoa, and salt.",
+      "Pour into 2 greased ramekins.",
+      "Bake 425°F for 9–11 min; dust with powdered sugar; top with raspberries."
+    ],
+    "cost": "$2.40",
+    "time": "25 min",
+    "servings": 2
+  },
+  {
+    "id": "AD",
+    "rank": "A",
+    "suit": "D",
+    "suitName": "Diamonds",
+    "suitSymbol": "♦",
+    "meal": "Dessert",
+    "name": "Cheesecake Cups",
+    "ingredients": [
+      "16 oz cream cheese",
+      "¾ cup sugar",
+      "1 tsp vanilla",
+      "½ cup sour cream",
+      "2 eggs",
+      "1 cup graham crackers",
+      "4 tbsp butter",
+      "1 tbsp lemon juice",
+      "½ cup berries",
+      "¼ cup whipped cream"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Crush graham crackers; mix with melted butter; press into ramekins.",
+      "Beat cream cheese, sugar, sour cream, eggs, vanilla, and lemon juice until smooth.",
+      "Pour over the crusts; bake 325°F for 25 min.",
+      "Chill; top with berries and whipped cream."
+    ],
+    "cost": "$2.10",
+    "time": "60 min",
+    "servings": 6
+  },
+  {
+    "id": "AC",
+    "rank": "A",
+    "suit": "C",
+    "suitName": "Clubs",
+    "suitSymbol": "♣",
+    "meal": "Dessert",
+    "name": "Tiramisu Cups",
+    "ingredients": [
+      "8 oz mascarpone",
+      "¾ cup espresso",
+      "12 ladyfingers",
+      "⅓ cup sugar",
+      "3 eggs",
+      "2 tbsp cocoa powder",
+      "½ tsp vanilla",
+      "2 tbsp rum",
+      "Pinch of salt",
+      "1 oz dark chocolate"
+    ],
+    "ingredientCount": 10,
+    "steps": [
+      "Whisk yolks, sugar, and vanilla over a double boiler 4 min; cool.",
+      "Fold in mascarpone; whip whites with salt; fold in.",
+      "Dip ladyfingers in espresso and rum; layer in cups.",
+      "Top with mascarpone mixture; dust with cocoa; shave dark chocolate on top."
+    ],
+    "cost": "$3.20",
+    "time": "30 min + chill",
+    "servings": 4
+  }
+];
+let filter = "All";
+let drawnIds = new Set();
+
+function poolFor(meal) {
+  return RECIPES.filter(r => meal === "All" || r.meal === meal);
+}
+
+function setFilter(el) {
+  document.querySelectorAll(".filter").forEach(f => f.classList.remove("active"));
+  el.classList.add("active");
+  filter = el.dataset.meal;
+  updateMeta();
+}
+
+function drawOne() {
+  let pool = poolFor(filter).filter(c => !drawnIds.has(c.id));
+  if (!pool.length) {
+    drawnIds = new Set(RECIPES.filter(c => c.meal !== filter && filter !== "All").map(c => c.id));
+    pool = poolFor(filter).filter(c => !drawnIds.has(c.id));
+    if (!pool.length) { return; }
+  }
+  const card = pool[Math.floor(Math.random() * pool.length)];
+  drawnIds.add(card.id);
+  renderSingle(card);
+  updateMeta();
+}
+
+function planMyDay() {
+  const breakfast = pick(poolFor("Breakfast"));
+  const lunch     = pick(poolFor("Lunch"));
+  const dinner    = pick(poolFor("Dinner"));
+  const dessert   = pick(poolFor("Dessert"));
+  renderMulti([breakfast, lunch, dinner, dessert]);
+  document.getElementById("meta").textContent = "Random meal plan for one full day.";
+}
+
+function reset() {
+  drawnIds = new Set();
+  document.getElementById("stage").innerHTML = '<div class="empty">Tap <strong>Shuffle &amp; Draw</strong> to pull a card from the deck.</div>';
+  updateMeta();
+}
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function updateMeta() {
+  const pool = poolFor(filter);
+  const remaining = pool.filter(c => !drawnIds.has(c.id)).length;
+  document.getElementById("meta").textContent =
+    `Pool: ${pool.length} cards (${filter})  ·  Drawn this session: ${pool.length - remaining}  ·  Remaining: ${remaining}`;
+}
+
+function cardHtml(c) {
+  const color = (c.suit === "H" || c.suit === "D") ? "red" : "black";
+  const dividerColor = color === "red" ? "var(--tomato)" : "var(--ink)";
+  return `
+    <div class="card">
+      <div class="corner corner-tl ${color}"><div class="r">${c.rank}</div><div class="s">${c.suitSymbol}</div></div>
+      <div class="corner corner-br ${color}"><div class="r">${c.rank}</div><div class="s">${c.suitSymbol}</div></div>
+      <div class="card-title">${c.name}</div>
+      <div class="divider" style="background:${dividerColor}"></div>
+      <div class="section-label">INGREDIENTS · ${c.ingredientCount}</div>
+      <div class="ingredients"><ul>${c.ingredients.map(i => `<li>${i}</li>`).join("")}</ul></div>
+      <div class="section-label">STEPS</div>
+      <div class="steps"><ol>${c.steps.map(s => `<li>${s}</li>`).join("")}</ol></div>
+      <div class="card-footer">${c.cost} / serving  ·  ${c.time}  ·  serves ${c.servings}</div>
+    </div>
+  `;
+}
+
+function renderSingle(card) {
+  document.getElementById("stage").innerHTML = cardHtml(card);
+}
+function renderMulti(cards) {
+  document.getElementById("stage").innerHTML = `<div class="grid">${cards.map(cardHtml).join("")}</div>`;
+}
+
+updateMeta();
+</script>
+</body>
+</html>
