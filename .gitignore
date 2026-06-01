@@ -1,0 +1,19 @@
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Node (if anyone adds tooling later)
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Build / temp
+dist/
+build/
+*.tmp
